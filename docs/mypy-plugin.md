@@ -47,3 +47,4 @@ f(ensure(get_int(), PositiveInt))
 
 The plugin can reject obvious literal mismatches such as `f(-1)` when the structured metadata is visible.
 
+If you want VS Code hover text for the computed depend type itself, use the local hover bridge described in `vscode-hover.md`.

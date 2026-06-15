@@ -15,6 +15,7 @@ nav:
   - Proofs: proofs.md
   - Registries: registries.md
   - mypy plugin: mypy-plugin.md
+  - VS Code hover: vscode-hover.md
   - Limitations: limitations.md
 markdown_extensions:
   - admonition

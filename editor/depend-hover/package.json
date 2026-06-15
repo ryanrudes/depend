@@ -1,0 +1,39 @@
+{
+  "name": "depend-hover",
+  "displayName": "depend Hover",
+  "description": "Show depend-computed types on hover by asking the repo helper script for the current symbol.",
+  "version": "0.0.1",
+  "publisher": "ryanrudes",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:python"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "depend Hover",
+      "properties": {
+        "dependHover.mypyConfig": {
+          "type": "string",
+          "default": "${workspaceFolder}/tests/mypy.ini",
+          "description": "Mypy config used by the hover helper."
+        },
+        "dependHover.pythonCommand": {
+          "type": "string",
+          "default": "uv",
+          "description": "Command used to launch the repo's Python environment."
+        },
+        "dependHover.timeoutMs": {
+          "type": "number",
+          "default": 4000,
+          "description": "Maximum time in milliseconds to wait for a hover result."
+        }
+      }
+    }
+  }
+}

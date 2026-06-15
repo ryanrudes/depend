@@ -31,6 +31,10 @@ It is designed for ordinary Python code that needs more shape than `Any` but sho
 - Run the validation bundle with `agents/hooks/preflight.sh`, `uv run pytest -q`, `uv run mypy .`, and `uv run python -m compileall -q src tests`
 - Use `docs/` as the MkDocs source and `site/` as the generated output
 
+## VS Code hover
+
+Install `editor/depend-hover` in VS Code if you want computed `depend` types on hover. The built-in Python hover providers do not read mypy plugins, so this repo includes a local bridge for the common depend-specific cases.
+
 ## Examples
 
 Runnable examples live in `examples/`.
