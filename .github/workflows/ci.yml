@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - uses: astral-sh/setup-uv@v5
+      - name: Sync dependencies
+        run: uv sync --frozen --group dev
+      - name: Preflight
+        run: bash agents/hooks/preflight.sh
+      - name: Runtime tests
+        run: uv run pytest -q
+      - name: Type check
+        run: uv run mypy .
+      - name: Compile
+        run: uv run python -m compileall -q src tests
+      - name: Mypy fixtures
+        run: bash agents/hooks/check-mypy-fixtures.sh

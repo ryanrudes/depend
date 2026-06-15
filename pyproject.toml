@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "depend"
+version = "0.1.0"
+description = "dependent-style typing for Python: runtime-validated, statically assisted"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "Ryan Rudes" }]
+keywords = ["typing", "mypy", "validation", "dependent-types", "python"]
+urls = { "Documentation" = "https://ryanrudes.github.io/depend/", "Source" = "https://github.com/ryanrudes/depend", "Issues" = "https://github.com/ryanrudes/depend/issues" }
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "mkdocs>=1.6.1",
+  "mypy",
+  "pytest",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/depend"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = []
+exclude = "^(tests/(runtime|mypy)/|examples/)"

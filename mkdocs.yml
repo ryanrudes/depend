@@ -1,0 +1,22 @@
+site_name: depend
+site_description: dependent-style typing for Python
+site_url: https://ryanrudes.github.io/depend/
+repo_name: depend
+repo_url: https://github.com/ryanrudes/depend
+theme:
+  name: readthedocs
+nav:
+  - Home: index.md
+  - Examples: examples.md
+  - Refinements: refinements.md
+  - Checked functions: checked-functions.md
+  - Sized collections: sized-collections.md
+  - NumPy shapes: numpy-shapes.md
+  - Proofs: proofs.md
+  - Registries: registries.md
+  - mypy plugin: mypy-plugin.md
+  - Limitations: limitations.md
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
