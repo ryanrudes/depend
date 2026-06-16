@@ -1,7 +1,7 @@
 {
   "name": "depend-hover",
   "displayName": "depend Hover",
-  "description": "Show depend-computed types on hover by asking the repo helper script for the current symbol.",
+  "description": "Show depend-computed types on hover by asking the repo helper script for the current expression.",
   "version": "0.0.1",
   "publisher": "ryanrudes",
   "engines": {

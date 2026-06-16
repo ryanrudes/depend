@@ -1,6 +1,7 @@
 # depend Hover
 
 This local VS Code extension shows computed `depend` types on hover by calling the repo helper in `scripts/hover_type.py`.
+The helper uses `dmypy inspect` against the repo's mypy config to ask `mypy` for the type of the expression under the cursor, then shows the plugin-specific refinement as the secondary line when it differs.
 
 ## Install locally
 
@@ -25,3 +26,5 @@ You can override the config in workspace settings:
   "dependHover.timeoutMs": 4000
 }
 ```
+
+Hover results work best when the repo's `tests/mypy.ini` is used, since that enables the `depend.mypy_plugin.plugin` hooks for `validate`, `ensure`, registry helpers, and refined annotations.

@@ -4,7 +4,8 @@ import json
 from dataclasses import dataclass
 from typing import Any, cast
 
-from mypy.types import ExtraAttrs, Instance, RawExpressionType, Type, TypeAliasType, get_proper_type
+from mypy.types import Instance, RawExpressionType, Type, TypeAliasType, get_proper_type
+from mypy.erasetype import remove_instance_last_known_values
 
 REFINED_META_ATTR = "__depend_refined__"
 REFINED_META_MOD = "depend.mypy_plugin"
@@ -66,11 +67,9 @@ def decode_refined_meta(payload: RawExpressionType, base_type: Type) -> RefinedM
 def attach_refined_meta(typ: Type, meta: RefinedMeta) -> Type:
     proper = get_proper_type(typ)
     if isinstance(proper, Instance):
-        attrs = proper.extra_attrs.copy() if proper.extra_attrs else ExtraAttrs({}, set(), REFINED_META_MOD)
-        attrs.attrs[REFINED_META_ATTR] = encode_refined_meta(meta)
-        attrs.immutable.add(REFINED_META_ATTR)
-        attrs.mod_name = REFINED_META_MOD
-        return cast(Type, cast(Any, proper).copy_modified(extra_attrs=attrs))
+        proper = remove_instance_last_known_values(proper)
+        encoded = encode_refined_meta(meta)
+        return cast(Type, cast(Any, proper).copy_with_extra_attr(REFINED_META_ATTR, encoded))
     return typ
 
 

@@ -42,6 +42,7 @@ async function provideDependHover(document, position) {
     String(position.line + 1),
     "--column",
     String(position.character + 1),
+    "--include-base",
   ];
   if (mypyConfig) {
     args.push("--mypy-config", mypyConfig);

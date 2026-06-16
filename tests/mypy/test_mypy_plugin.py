@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
+import textwrap
 
 import pytest
 
@@ -39,3 +41,55 @@ def test_mypy_plugin(case_name: str, should_pass: bool, expected: str) -> None:
     else:
         assert result.returncode != 0, output
         assert expected in output, output
+
+
+def test_registry_and_validate_types() -> None:
+    case = CASES / "registry_and_validate_success.py"
+    result = subprocess.run(
+        [sys.executable, "-m", "mypy", "--config-file", str(CONFIG), str(case)],
+        cwd=ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        check=False,
+    )
+
+    output = result.stdout
+    assert result.returncode == 0, output
+    assert 'Revealed type is "Literal[4]?"' in output, output
+    assert 'Revealed type is "Literal[\'validate\']?"' in output, output
+    assert 'Revealed type is "Literal[\'runtime\']?"' in output, output
+    assert 'Revealed type is "Literal[\'runtime:validate\']"' in output, output
+    assert 'Revealed type is "tuple[' in output and "validate" in output, output
+
+
+def test_validate_and_ensure_failures() -> None:
+    source = textwrap.dedent(
+        """
+        from typing import Annotated
+
+        from depend import GreaterThan, ensure, validate
+
+        type PositiveInt = Annotated[int, GreaterThan[0]]
+
+        validate(-1, PositiveInt)
+        ensure(-1, PositiveInt)
+        """
+    ).lstrip("\n")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        case = Path(tmp) / "validate_failure.py"
+        case.write_text(source, encoding="utf-8")
+        result = subprocess.run(
+            [sys.executable, "-m", "mypy", "--config-file", str(CONFIG), str(case)],
+            cwd=ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=False,
+        )
+
+    output = result.stdout
+    assert result.returncode != 0, output
+    assert "Argument 1 to validate violates GreaterThan[0]" in output, output
+    assert "Argument 1 to ensure violates GreaterThan[0]" in output, output

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import hashlib
 import json
 import subprocess
 import sys
@@ -111,32 +112,61 @@ def hover_info(
     if node is None:
         return None
 
-    symbol = _symbol_name(node, source)
+    hover_node = _hover_expression_node(node, analysis.parents)
+    symbol = _symbol_name(hover_node, source)
+    if symbol is None:
+        symbol = _symbol_name(node, source)
     if symbol is None:
         return None
 
     binding = _binding_for_symbol(analysis.root, line, column, symbol)
-    if binding is not None:
-        base_type = _mypy_base_type(source, file, node, mypy_config, analysis.parents) if include_base else None
+    inspected_type = _dmypy_inspected_type(hover_node, file, mypy_config)
+    if inspected_type is None:
+        inspected_type = _mypy_revealed_type(source, file, hover_node, mypy_config, analysis.parents)
+    expression = _source_segment(source, hover_node)
+
+    if binding is not None and binding.kind == "type_alias":
+        base_type = inspected_type if include_base and inspected_type and inspected_type != binding.display else None
         return HoverInfo(
             symbol=symbol,
             computed_type=binding.display,
             kind=binding.kind,
             detail=binding.detail,
             base_type=base_type,
-            expression=_source_segment(source, node),
+            expression=expression,
         )
 
-    base_type = _mypy_base_type(source, file, node, mypy_config, analysis.parents) if include_base else None
-    if base_type is None:
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.arg)) and binding is not None:
+        base_type = inspected_type if include_base and inspected_type and inspected_type != binding.display else None
+        return HoverInfo(
+            symbol=symbol,
+            computed_type=binding.display,
+            kind=binding.kind,
+            detail=binding.detail,
+            base_type=base_type,
+            expression=expression,
+        )
+
+    if inspected_type is not None and inspected_type != "Any":
+        base_type = binding.display if include_base and binding is not None and binding.display != inspected_type else None
+        return HoverInfo(
+            symbol=symbol,
+            computed_type=inspected_type,
+            kind="mypy",
+            detail=None,
+            base_type=base_type,
+            expression=expression,
+        )
+
+    if binding is None:
         return None
     return HoverInfo(
         symbol=symbol,
-        computed_type=base_type,
-        kind="mypy",
-        detail=None,
-        base_type=base_type,
-        expression=_source_segment(source, node),
+        computed_type=binding.display,
+        kind=binding.kind,
+        detail=binding.detail,
+        base_type=None,
+        expression=expression,
     )
 
 
@@ -409,6 +439,18 @@ def _node_area(node: ast.AST) -> tuple[int, int, int, int]:
     return end[0] - start[0], end[1] - start[1], start[0], start[1]
 
 
+def _node_span(node: ast.AST) -> tuple[int, int, int, int] | None:
+    if not hasattr(node, "lineno") or not hasattr(node, "end_lineno"):
+        return None
+    start_line = getattr(node, "lineno", 1)
+    start_col = getattr(node, "col_offset", 0) + 1
+    end_line = getattr(node, "end_lineno", start_line)
+    end_col = getattr(node, "end_col_offset", getattr(node, "col_offset", 0) + 1)
+    if end_line == start_line and end_col < start_col:
+        end_col = start_col
+    return start_line, start_col, end_line, end_col
+
+
 def _symbol_name(node: ast.AST, source: str) -> str | None:
     if isinstance(node, ast.Name):
         return node.id
@@ -418,8 +460,12 @@ def _symbol_name(node: ast.AST, source: str) -> str | None:
         return _call_name(node.func)
     if isinstance(node, ast.arg):
         return node.arg
+    if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+        return node.name
     if isinstance(node, ast.TypeAlias):
         return node.name.id
+    if isinstance(node, ast.Subscript):
+        return _source_segment(source, node)
     return None
 
 
@@ -449,7 +495,14 @@ def _source_segment(source: str, node: ast.AST | None) -> str:
     return "\n".join([first, *middle, last])
 
 
-def _mypy_base_type(
+def _dmypy_inspected_type(node: ast.AST, file: Path, mypy_config: Path | None) -> str | None:
+    span = _node_span(node)
+    if span is None:
+        return None
+    return _run_dmypy_inspect(file, span, mypy_config)
+
+
+def _mypy_revealed_type(
     source: str,
     file: Path,
     node: ast.AST,
@@ -477,17 +530,17 @@ def _mypy_base_type(
 
     try:
         cmd = [sys.executable, "-m", "mypy"]
+        cmd.append("--no-incremental")
         if mypy_config is not None:
             cmd.extend(["--config-file", str(mypy_config)])
         cmd.extend(["--shadow-file", str(file), str(temp_path), str(file)])
-        cwd = str(mypy_config.parent if mypy_config is not None else file.parent)
         result = subprocess.run(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             check=False,
-            cwd=cwd,
+            cwd=str(Path.cwd()),
         )
     finally:
         try:
@@ -501,6 +554,114 @@ def _mypy_base_type(
             _, _, tail = line.partition(marker)
             return tail.strip().strip('"')
     return None
+
+
+def _run_dmypy_inspect(file: Path, span: tuple[int, int, int, int], mypy_config: Path | None) -> str | None:
+    status_file = _dmypy_status_file(mypy_config)
+    location = f"{file}:{span[0]}:{span[1]}:{span[2]}:{span[3]}"
+    cmd = _dmypy_base_command(status_file) + ["inspect", "--force-reload", "--show", "type", location]
+
+    result = subprocess.run(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        check=False,
+        cwd=str(Path.cwd()),
+    )
+    inspected = _parse_dmypy_type_output(result.stdout)
+    if inspected is not None:
+        return inspected
+
+    if not _needs_dmypy_bootstrap(result.stdout):
+        return None
+
+    bootstrap = _dmypy_base_command(status_file) + ["run", "--"]
+    if mypy_config is not None:
+        bootstrap.extend(["--config-file", str(mypy_config)])
+    bootstrap.append(str(file))
+    subprocess.run(
+        bootstrap,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        check=False,
+        cwd=str(Path.cwd()),
+    )
+
+    result = subprocess.run(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        check=False,
+        cwd=str(Path.cwd()),
+    )
+    return _parse_dmypy_type_output(result.stdout)
+
+
+def _dmypy_base_command(status_file: Path) -> list[str]:
+    return [sys.executable, "-m", "mypy.dmypy", "--status-file", str(status_file)]
+
+
+def _dmypy_status_file(mypy_config: Path | None) -> Path:
+    cwd = Path.cwd().resolve()
+    config = mypy_config.resolve() if mypy_config is not None else None
+    basis = f"{cwd}::{config if config is not None else ''}"
+    digest = hashlib.sha256(basis.encode("utf-8")).hexdigest()[:16]
+    return Path(tempfile.gettempdir()) / f"depend-hover-{digest}.json"
+
+
+def _parse_dmypy_type_output(output: str) -> str | None:
+    for line in output.splitlines():
+        if "->" not in line:
+            continue
+        _, _, tail = line.partition("->")
+        tail = tail.strip()
+        if not tail:
+            continue
+        try:
+            return ast.literal_eval(tail)
+        except Exception:  # noqa: BLE001
+            continue
+    return None
+
+
+def _needs_dmypy_bootstrap(output: str) -> bool:
+    lowered = output.lower()
+    return "daemon" in lowered or "not running" in lowered or "no known type available" in lowered or "cannot find" in lowered
+
+
+def _hover_expression_node(node: ast.AST, parents: dict[ast.AST, ast.AST | None]) -> ast.AST:
+    current = node
+    while True:
+        parent = parents.get(current)
+        if parent is None:
+            return current
+        if isinstance(parent, ast.Attribute) and current is parent.value:
+            current = parent
+            continue
+        if isinstance(parent, ast.Subscript) and current is parent.value:
+            current = parent
+            continue
+        if isinstance(parent, ast.Call) and current is parent.func:
+            current = parent
+            continue
+        return current
+
+
+def _is_definition_context(node: ast.AST, parents: dict[ast.AST, ast.AST | None]) -> bool:
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.TypeAlias, ast.arg)):
+        return True
+
+    parent = parents.get(node)
+    if isinstance(parent, ast.Assign):
+        return node in parent.targets
+    if isinstance(parent, ast.AnnAssign):
+        return parent.target is node
+    if isinstance(parent, ast.NamedExpr):
+        return parent.target is node
+    return False
 
 
 def _nearest_stmt(node: ast.AST, parents: dict[ast.AST, ast.AST | None]) -> ast.stmt | None:
