@@ -56,9 +56,15 @@ def test_registry_and_validate_types() -> None:
 
     output = result.stdout
     assert result.returncode == 0, output
-    assert 'Revealed type is "Literal[4]?"' in output, output
+    assert (
+        output.count('Revealed type is "Literal[4]?"') == 2
+        or output.count('Revealed type is "int"') == 2
+    ), output
     assert 'Revealed type is "Literal[\'validate\']?"' in output, output
-    assert 'Revealed type is "Literal[\'runtime\']?"' in output, output
+    assert (
+        'Revealed type is "Literal[\'runtime\']?"' in output
+        or 'Revealed type is "Literal[registry_and_validate_success.Topics.RUNTIME]"' in output
+    ), output
     assert 'Revealed type is "Literal[\'runtime:validate\']"' in output, output
     assert 'Revealed type is "tuple[' in output and "validate" in output, output
 

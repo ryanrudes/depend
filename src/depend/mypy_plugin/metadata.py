@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 from mypy.types import Instance, RawExpressionType, Type, TypeAliasType, get_proper_type
-from mypy.erasetype import remove_instance_last_known_values
 
 REFINED_META_ATTR = "__depend_refined__"
 REFINED_META_MOD = "depend.mypy_plugin"
@@ -67,7 +66,6 @@ def decode_refined_meta(payload: RawExpressionType, base_type: Type) -> RefinedM
 def attach_refined_meta(typ: Type, meta: RefinedMeta) -> Type:
     proper = get_proper_type(typ)
     if isinstance(proper, Instance):
-        proper = cast(Instance, remove_instance_last_known_values(proper))
         encoded = encode_refined_meta(meta)
         return cast(Type, cast(Any, proper).copy_with_extra_attr(REFINED_META_ATTR, encoded))
     return typ
@@ -80,13 +78,7 @@ def strip_refined_meta(typ: Type) -> Type:
             return typ
         return strip_refined_meta(proper._expand_once())
     if isinstance(proper, Instance):
-        if proper.extra_attrs and REFINED_META_ATTR in proper.extra_attrs.attrs:
-            extra = proper.extra_attrs.copy()
-            extra.attrs.pop(REFINED_META_ATTR, None)
-            extra.immutable.discard(REFINED_META_ATTR)
-            if not extra.attrs:
-                return cast(Type, cast(Any, proper).copy_modified(extra_attrs=None))
-            return cast(Type, cast(Any, proper).copy_modified(extra_attrs=extra))
+        return typ
     return typ
 
 

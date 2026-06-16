@@ -29,7 +29,8 @@ def mark_type(typ: Type, meta: RefinedMeta) -> Type:
     if isinstance(proper, TypeAliasType) and proper.alias is not None:
         return mark_type(proper._expand_once(), meta)
     if isinstance(proper, LiteralType):
-        return attach_refined_meta(proper.fallback, replace(meta, base_type=proper.fallback))
+        fallback = proper.fallback.copy_modified(last_known_value=proper)
+        return attach_refined_meta(fallback, replace(meta, base_type=fallback))
     return attach_refined_meta(proper, replace(meta, base_type=proper))
 
 
