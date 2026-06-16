@@ -1,21 +1,27 @@
 from __future__ import annotations
 
+from typing import Annotated, Any
+
 from depend import AnyDim, Float64, NDArray, Shape, ValidationError, checked
 
 
+Array3xFloat64 = Annotated[Any, NDArray[Shape["n", 3], Float64]]
+ArrayAnyWidthFloat64 = Annotated[Any, NDArray[Shape["n", AnyDim], Float64]]
+
+
 @checked
-def normalize_rows(x: NDArray[Shape["n", 3], Float64]) -> NDArray[Shape["n", 3], Float64]:
+def normalize_rows(x: Array3xFloat64) -> Array3xFloat64:
     return x
 
 
 @checked
-def passthrough(x: NDArray[Shape["n", AnyDim], Float64]) -> NDArray[Shape["n", AnyDim], Float64]:
+def passthrough(x: ArrayAnyWidthFloat64) -> ArrayAnyWidthFloat64:
     return x
 
 
 def main() -> None:
     try:
-        import numpy as np
+        import numpy as np  # type: ignore[import-not-found]
     except ModuleNotFoundError:
         print("NumPy is not installed")
         return
@@ -32,4 +38,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
