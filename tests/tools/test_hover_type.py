@@ -48,6 +48,29 @@ def run_hover(
     return payload
 
 
+def run_hover_server(
+    file_path: Path,
+    requests: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    args = [
+        sys.executable,
+        str(SCRIPT),
+        "--serve",
+    ]
+    input_payload = "\n".join(json.dumps(request) for request in requests) + "\n"
+    result = subprocess.run(
+        args,
+        cwd=ROOT,
+        input=input_payload,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout
+    return [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
+
+
 def test_hover_reports_computed_and_refined_types(tmp_path: Path) -> None:
     source = textwrap.dedent(
         """
@@ -131,3 +154,68 @@ def test_hover_tracks_control_flow_narrowing(tmp_path: Path) -> None:
     assert narrowed["computed_type"] == "int"
     assert narrowed["kind"] == "mypy"
     assert narrowed["base_type"] == "value"
+
+
+def test_hover_server_handles_multiple_requests(tmp_path: Path) -> None:
+    source = textwrap.dedent(
+        """
+        from enum import Enum
+        from typing import Annotated
+        from depend import GreaterThan, checked, ensure, parent_of, label_of, register
+
+        type PositiveInt = Annotated[int, GreaterThan[0]]
+
+        class Topics(Enum):
+            RUNTIME = "runtime"
+
+        @register(to=Topics.RUNTIME)
+        class RuntimeFragments:
+            VALIDATE = "validate"
+
+        @checked
+        def f(x: PositiveInt) -> PositiveInt:
+            print(x)
+
+        x = parent_of(RuntimeFragments.VALIDATE)
+        y = ensure(3, PositiveInt)
+        print(x)
+        print(y)
+        print(RuntimeFragments.VALIDATE)
+        print(label_of(RuntimeFragments.VALIDATE))
+        """
+    ).lstrip("\n")
+    file_path = tmp_path / "sample.py"
+    file_path.write_text(source, encoding="utf-8")
+
+    responses = run_hover_server(
+        file_path,
+        [
+            {
+                "id": 1,
+                "file": str(file_path),
+                "line": 5,
+                "column": 6,
+                "mypy_config": str(MYPY_CONFIG),
+                "include_base": True,
+            },
+            {
+                "id": 2,
+                "file": str(file_path),
+                "line": 16,
+                "column": 11,
+                "mypy_config": str(MYPY_CONFIG),
+                "include_base": True,
+            },
+        ],
+    )
+
+    assert len(responses) == 2
+    assert responses[0]["id"] == 1
+    assert responses[0]["ok"] is True
+    assert responses[0]["symbol"] == "PositiveInt"
+    assert responses[0]["computed_type"] == "Annotated[int, GreaterThan[0]]"
+
+    assert responses[1]["id"] == 2
+    assert responses[1]["ok"] is True
+    assert responses[1]["symbol"] == "x"
+    assert responses[1]["computed_type"] == "int"

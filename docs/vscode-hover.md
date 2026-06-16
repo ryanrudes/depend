@@ -3,6 +3,8 @@
 VS Code hover text does not come from mypy plugins directly. Pylance and the mypy plugin are separate systems, so the plugin can validate code without affecting the built-in hover provider.
 
 To get computed `depend` types on hover in this repository, use the local hover bridge in `editor/depend-hover/`. The bridge uses `dmypy inspect` with the repo's mypy config to ask `mypy` for the expression type at the cursor, then shows the plugin-specific refinement or source annotation as the secondary line when that is more informative.
+It also surfaces matching mypy diagnostics from the current line so the hover explains both the computed type and the nearby problem.
+The extension keeps a warm Python helper process alive per workspace/config and prefetches hover results in the background on cursor movement, so the hover popup itself stays instant once a token has been warmed. Results are cached in memory per file version until the file changes.
 
 ## What it shows
 
@@ -11,6 +13,7 @@ To get computed `depend` types on hover in this repository, use the local hover 
 - registered members like `RuntimeFragments.VALIDATE`
 - bindings created with `ensure(value, Annotation)`
 - parameters and other names via the current inferred type in the hovered block
+- the current line's matching mypy problems, when present
 
 ## Install
 

@@ -65,12 +65,19 @@ class HoverInfo:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Compute a depend-aware hover type for a Python symbol.")
-    parser.add_argument("--file", required=True, type=Path)
-    parser.add_argument("--line", required=True, type=int, help="1-based line number.")
-    parser.add_argument("--column", required=True, type=int, help="1-based column number.")
+    parser.add_argument("--serve", action="store_true", help="Run as a long-lived JSONL hover server.")
+    parser.add_argument("--file", type=Path)
+    parser.add_argument("--line", type=int, help="1-based line number.")
+    parser.add_argument("--column", type=int, help="1-based column number.")
     parser.add_argument("--mypy-config", type=Path, default=None)
     parser.add_argument("--include-base", action="store_true", help="Attach a mypy-revealed base type when possible.")
     args = parser.parse_args()
+
+    if args.serve:
+        return serve()
+
+    if args.file is None or args.line is None or args.column is None:
+        parser.error("--file, --line, and --column are required unless --serve is used")
 
     source = args.file.read_text(encoding="utf-8")
     tree = ast.parse(source, filename=str(args.file), type_comments=True)
@@ -84,12 +91,111 @@ def main() -> int:
         args.mypy_config,
         args.include_base,
     )
-    if hover is None:
-        print(json.dumps({"ok": False, "reason": "no hover target found"}))
-        return 1
-
-    print(json.dumps({"ok": True, **hover.to_json()}, separators=(",", ":")))
+    print(json.dumps(_hover_response(hover), separators=(",", ":")))
     return 0
+
+
+@dataclass(slots=True)
+class FileSnapshot:
+    fingerprint: tuple[int, int]
+    source: str
+    analysis: Analysis
+
+
+class HoverServer:
+    def __init__(self) -> None:
+        self._snapshots: dict[Path, FileSnapshot] = {}
+        self._responses: dict[tuple[str, tuple[int, int], int, int, str, bool], dict[str, Any]] = {}
+
+    def handle_request(self, request: dict[str, Any]) -> dict[str, Any]:
+        request_id = request.get("id")
+        try:
+            file = Path(request["file"])
+            line = int(request["line"])
+            column = max(int(request["column"]) - 1, 0)
+            mypy_config_raw = request.get("mypy_config")
+            mypy_config = Path(mypy_config_raw) if mypy_config_raw else None
+            include_base = bool(request.get("include_base"))
+        except (KeyError, TypeError, ValueError) as exc:
+            return {"id": request_id, "ok": False, "reason": f"invalid hover request: {exc}"}
+
+        try:
+            snapshot = self._load_snapshot(file)
+        except OSError as exc:
+            return {"id": request_id, "ok": False, "reason": f"failed to read file: {exc}"}
+
+        cache_key = (
+            str(file.resolve()),
+            snapshot.fingerprint,
+            line,
+            column,
+            str(mypy_config.resolve()) if mypy_config is not None else "",
+            include_base,
+        )
+        cached = self._responses.get(cache_key)
+        if cached is not None:
+            return {"id": request_id, **cached}
+
+        hover = hover_info(
+            snapshot.analysis,
+            snapshot.source,
+            line,
+            column,
+            file,
+            mypy_config,
+            include_base,
+        )
+        response = _hover_response(hover)
+        self._responses[cache_key] = response
+        return {"id": request_id, **response}
+
+    def _load_snapshot(self, file: Path) -> FileSnapshot:
+        resolved = file.resolve()
+        stat_result = resolved.stat()
+        fingerprint = (stat_result.st_mtime_ns, stat_result.st_size)
+        cached = self._snapshots.get(resolved)
+        if cached is not None and cached.fingerprint == fingerprint:
+            return cached
+        if cached is not None:
+            resolved_key = str(resolved)
+            self._responses = {
+                key: value
+                for key, value in self._responses.items()
+                if key[0] != resolved_key
+            }
+
+        source = resolved.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(resolved), type_comments=True)
+        analysis = _analyze(tree, source)
+        snapshot = FileSnapshot(fingerprint=fingerprint, source=source, analysis=analysis)
+        self._snapshots[resolved] = snapshot
+        return snapshot
+
+
+def serve() -> int:
+    server = HoverServer()
+    for raw_line in sys.stdin:
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            request = json.loads(line)
+        except json.JSONDecodeError as exc:
+            response = {"ok": False, "reason": f"invalid JSON: {exc}"}
+        else:
+            try:
+                response = server.handle_request(request)
+            except Exception as exc:  # noqa: BLE001
+                response = {"id": request.get("id") if isinstance(request, dict) else None, "ok": False, "reason": str(exc)}
+
+        print(json.dumps(response, separators=(",", ":")), flush=True)
+    return 0
+
+
+def _hover_response(hover: HoverInfo | None) -> dict[str, Any]:
+    if hover is None:
+        return {"ok": False, "reason": "no hover target found"}
+    return {"ok": True, **hover.to_json()}
 
 
 @dataclass(slots=True)
