@@ -10,7 +10,7 @@ from typing import Any, cast
 from mypy.copytype import copy_type
 from mypy.nodes import AssignmentStmt, CallExpr, Expression, MemberExpr, NameExpr, TypeInfo, Var
 from mypy.plugin import AnalyzeTypeContext, CheckerPluginInterface, ClassDefContext, FunctionContext, FunctionSigContext, MethodContext, MethodSigContext, Plugin
-from mypy.types import AnyType, CallableType, Instance, LiteralType, TupleType, Type, TypeAliasType, TypeOfAny, UnboundType, get_proper_type
+from mypy.types import AnyType, CallableType, Instance, LiteralType, ProperType, TupleType, Type, TypeAliasType, TypeOfAny, UnboundType, get_proper_type
 
 from .analyze import analyze_annotated_type, ctx_type_placeholder, _parse_known_predicate, _root_name
 from .metadata import FunctionContract, RefinedMeta, extract_refined_meta, lookup_refined_meta
@@ -48,7 +48,7 @@ def _value_key(value: Any) -> RegistryKey:
     return ("value", value)
 
 
-def _literal_str_type(text: str, api: CheckerPluginInterface | ClassDefContext | Any) -> Type:
+def _literal_str_type(text: str, api: Any) -> Type:
     str_type = api.named_generic_type("builtins.str", []) if hasattr(api, "named_generic_type") else api.named_type("builtins.str", [])
     return LiteralType(text, str_type)
 
@@ -255,7 +255,7 @@ class DependPlugin(Plugin):
             if child_type is None:
                 continue
 
-            child_type = copy_type(child_type)
+            child_type = cast(Type, copy_type(cast(ProperType, get_proper_type(child_type))))
             child_value = literal_value(child_type)
             if child_value is None:
                 continue
@@ -429,7 +429,7 @@ class DependPlugin(Plugin):
             if isinstance(base, NameExpr) and isinstance(base.node, TypeInfo) and base.node.is_enum:
                 enum_type = ctx.api.named_type(base.node.fullname, [])
                 return LiteralType(expr.name, enum_type)
-        return copy_type(typ)
+        return cast(Type, copy_type(cast(ProperType, get_proper_type(typ))))
 
     def _literal_type_from_expr(self, expr: Expression, ctx: ClassDefContext) -> Type | None:
         typ = ctx.api.analyze_simple_literal_type(expr, True)

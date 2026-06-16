@@ -67,7 +67,7 @@ def decode_refined_meta(payload: RawExpressionType, base_type: Type) -> RefinedM
 def attach_refined_meta(typ: Type, meta: RefinedMeta) -> Type:
     proper = get_proper_type(typ)
     if isinstance(proper, Instance):
-        proper = remove_instance_last_known_values(proper)
+        proper = cast(Instance, remove_instance_last_known_values(proper))
         encoded = encode_refined_meta(meta)
         return cast(Type, cast(Any, proper).copy_with_extra_attr(REFINED_META_ATTR, encoded))
     return typ
