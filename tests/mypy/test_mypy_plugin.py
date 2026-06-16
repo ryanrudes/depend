@@ -12,6 +12,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG = ROOT / "tests" / "mypy.ini"
 CASES = ROOT / "tests" / "mypy" / "cases"
+EXAMPLES = ROOT / "examples"
 
 
 @pytest.mark.parametrize(
@@ -99,3 +100,34 @@ def test_validate_and_ensure_failures() -> None:
     assert result.returncode != 0, output
     assert "Argument 1 to validate violates GreaterThan[0]" in output, output
     assert "Argument 1 to ensure violates GreaterThan[0]" in output, output
+
+
+@pytest.mark.parametrize(
+    ("example_name", "should_pass", "expected"),
+    [
+        ("proofs.py", True, "Success: no issues found"),
+        ("sized_collections.py", True, "Success: no issues found"),
+        ("numpy_shapes.py", True, "Success: no issues found"),
+        ("refinements.py", True, "Success: no issues found"),
+        ("registries.py", True, "Success: no issues found"),
+        ("checked_functions.py", False, "Argument 2 to repeat violates GreaterThan[0]"),
+    ],
+)
+def test_examples_mypy(example_name: str, should_pass: bool, expected: str) -> None:
+    example = EXAMPLES / example_name
+    result = subprocess.run(
+        [sys.executable, "-m", "mypy", "--config-file", str(CONFIG), str(example)],
+        cwd=ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        check=False,
+    )
+
+    output = result.stdout
+    if should_pass:
+        assert result.returncode == 0, output
+        assert expected in output, output
+    else:
+        assert result.returncode != 0, output
+        assert expected in output, output

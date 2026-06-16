@@ -1,13 +1,16 @@
 from __future__ import annotations
 
-from depend import RequiresProof, ValidationError, checked, ensured, prove, refined
+from typing import Annotated
+
+from depend import GreaterThan, Proof, RequiresProof, ValidationError, checked, ensured, prove, refined
 
 
-PositiveInt = refined(int, lambda x: x > 0, name="PositiveInt")
+PositiveInt = Annotated[int, GreaterThan[0]]
+ProofForY = Annotated[Proof, RequiresProof["y", PositiveInt]]
 
 
 @checked
-def divide(x: float, y: PositiveInt, proof: RequiresProof["y", PositiveInt]) -> float:
+def divide(x: float, y: PositiveInt, proof: ProofForY) -> float:
     return x / y
 
 
@@ -26,4 +29,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

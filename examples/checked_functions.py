@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from depend import ValidationError, checked, ensure, refined
+from typing import Annotated
 
+from depend import GreaterThan, ValidationError, checked, ensure
 
-PositiveInt = refined(int, lambda x: x > 0, name="PositiveInt")
+PositiveInt = Annotated[int, GreaterThan[0]]
 
 
 @checked
@@ -32,4 +33,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
