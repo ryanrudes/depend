@@ -14,6 +14,8 @@ mypy_path = src
 show_error_codes = True
 ```
 
+If `depend` is installed in your environment as a dependency, that is enough for mypy to import the plugin. You only need `mypy_path = src` when you are checking the source tree in this repository or another editable checkout of `depend`.
+
 ## What it currently understands
 
 - `Annotated[T, GreaterThan[...]]`, `Between[...]`, `NonEmpty`, `Finite`, `Probability`, and `StrictlyIncreasing`

@@ -1,0 +1,13 @@
+{
+  "mypy-type-checker.importStrategy": "fromEnvironment",
+  "mypy-type-checker.interpreter": ["${workspaceFolder}/.venv/bin/python"],
+  "mypy-type-checker.args": ["--config-file", "${workspaceFolder}/tests/mypy.ini"],
+  "mypy-type-checker.cwd": "${workspaceFolder}",
+  "mypy-type-checker.reportingScope": "file",
+  "mypy-type-checker.preferDaemon": false,
+  "dependHover.mypyConfig": "${workspaceFolder}/tests/mypy.ini",
+  "dependHover.scriptPath": "${workspaceFolder}/scripts/hover_type.py",
+  "dependHover.pythonCommand": "uv",
+  "dependHover.timeoutMs": 4000,
+  "python.analysis.extraPaths": ["${workspaceFolder}/src"]
+}

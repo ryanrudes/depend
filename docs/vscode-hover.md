@@ -28,16 +28,20 @@ The extension assumes:
 
 - `uv` is available on `PATH`
 - the repo uses `tests/mypy.ini`
+- the helper script lives at `${workspaceFolder}/scripts/hover_type.py`
 
 You can override those defaults with workspace settings:
 
 ```json
 {
   "dependHover.mypyConfig": "${workspaceFolder}/tests/mypy.ini",
+  "dependHover.scriptPath": "${workspaceFolder}/scripts/hover_type.py",
   "dependHover.pythonCommand": "uv",
   "dependHover.timeoutMs": 4000
 }
 ```
+
+If you are using `depend` as a dependency in another project, point `dependHover.mypyConfig` at that project's mypy config and set `dependHover.scriptPath` to the helper script you want the extension to run. The helper can live in a checkout of this repository or in a vendored copy inside the consumer project.
 
 ## Limitations
 

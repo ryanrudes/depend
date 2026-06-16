@@ -193,7 +193,10 @@ function resolveHoverEnvironment(document) {
     config.get("mypyConfig", "${workspaceFolder}/tests/mypy.ini"),
     workspaceFolder.uri.fsPath,
   );
-  const scriptPath = path.join(workspaceFolder.uri.fsPath, "scripts", "hover_type.py");
+  const scriptPath = resolveWorkspaceTemplate(
+    config.get("scriptPath", "${workspaceFolder}/scripts/hover_type.py"),
+    workspaceFolder.uri.fsPath,
+  );
   return {
     workspaceFolderPath: workspaceFolder.uri.fsPath,
     pythonCommand,

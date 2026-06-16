@@ -23,6 +23,11 @@
           "default": "${workspaceFolder}/tests/mypy.ini",
           "description": "Mypy config used by the hover helper."
         },
+        "dependHover.scriptPath": {
+          "type": "string",
+          "default": "${workspaceFolder}/scripts/hover_type.py",
+          "description": "Path to the hover helper script."
+        },
         "dependHover.pythonCommand": {
           "type": "string",
           "default": "uv",
